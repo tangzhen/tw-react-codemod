@@ -14,7 +14,7 @@ const TwoComponent = React.createClass({
 
   render() {
     return (
-      <div></div>
+      <div onClick={this.transitionTo.bind(null, 'upcomingTripsPage')}></div>
     );
   }
 });
