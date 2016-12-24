@@ -14,7 +14,9 @@ const TwoComponent = React.createClass({
 
   render() {
     return (
-      <div onClick={this.history.pushState.bind(null, null, 'upcomingTripsPage')}></div>
+      <div onClick={this.history.pushState.bind(null, null, 'user')}>
+        <div onClick={this.history.replaceState.bind(null, null, 'user')} />
+      </div>
     );
   }
 });

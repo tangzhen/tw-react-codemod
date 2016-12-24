@@ -22,7 +22,7 @@ module.exports = (file, api, options) => {
   };
 
   const replaceReplaceWith = p => {
-    const functionArguments = p.parent.node.arguments;
+    const functionArguments = p.parent.node.arguments || p.parent.parent.node.arguments;
     functionArguments.unshift(j.literal(null));
 
     return j.memberExpression(
