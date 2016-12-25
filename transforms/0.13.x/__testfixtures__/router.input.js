@@ -1,5 +1,5 @@
 const React = require('react');
-const {Route} = require('react-router');
+const {Route, RouteHandler} = require('react-router');
 
 module.exports = (
   <Route name="about" handler={About}>
@@ -7,3 +7,13 @@ module.exports = (
     <Route name="subRoute" path='aboutSubRout' handler={About}/>
   </Route>
 );
+
+const RouteHandlerComponent = React.createClass({
+  render() {
+    return (
+      <div>
+        <RouteHandler/>
+      </div>
+    );
+  }
+});

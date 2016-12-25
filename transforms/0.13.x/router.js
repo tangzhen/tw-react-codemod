@@ -23,6 +23,26 @@ module.exports = (file, api, options) => {
     return p.node;
   };
 
+  const replaceRouteHandler = () => {
+    return j.jsxExpressionContainer(
+      j.memberExpression(
+        j.memberExpression(
+          j.thisExpression(),
+          j.identifier('props')
+        ), j.identifier('children'))
+    );
+  };
+
+  const removeRouteHandlerRequire = p => {
+    _.remove(p.node.properties, {value: {name: 'RouteHandler'}});
+    return p.node;
+  };
+
+  root.find(j.JSXOpeningElement, {
+    name: {name: 'DefaultRoute'}
+  })
+    .replaceWith(replaceDefaultRoute);
+
   root.find(j.Identifier, {name: 'DefaultRoute'})
     .replaceWith((p) => {
       _.merge(p.node, {name: 'IndexRoute'});
@@ -35,9 +55,12 @@ module.exports = (file, api, options) => {
     .replaceWith(replaceRoute);
 
   root.find(j.JSXOpeningElement, {
-    name: {name: 'DefaultRoute'}
+    name: {name: 'RouteHandler'}
   })
-    .replaceWith(replaceDefaultRoute);
+    .replaceWith(replaceRouteHandler);
+
+  root.find(j.ObjectPattern)
+    .replaceWith(removeRouteHandlerRequire);
 
   return root.toSource();
 };
