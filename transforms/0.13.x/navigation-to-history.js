@@ -1,5 +1,6 @@
 'use strict';
 const _ = require('lodash');
+const routerPath = require('./routePath');
 
 module.exports = (file, api, options) => {
   const j = api.jscodeshift;
@@ -10,26 +11,41 @@ module.exports = (file, api, options) => {
     return p.node;
   };
 
-  const replaceTransitionTo = p => {
-    const functionArguments = p.parent.node.arguments || p.parent.parent.node.arguments;
-    functionArguments.unshift(j.literal(null));
+  const getRoutePath = routeName => {
+    let newVar = _.get(routerPath, routeName) || routeName;
+    return newVar;
+  };
 
+  const addParameterState = p => {
+    let functionArguments = p.parent.node.arguments;
+    if (_.get(p, 'parent.node.property.name') === 'bind') {
+      functionArguments = p.parent.parent.node.arguments;
+      functionArguments[1] = j.literal(getRoutePath(functionArguments[1].value));
+    } else {
+      functionArguments[0] = j.literal(getRoutePath(functionArguments[0].value));
+    }
+
+    functionArguments.unshift(j.literal(null));
+  };
+
+  const createHistoryMemberExpression = functionName => {
     return j.memberExpression(
       j.memberExpression(
         j.thisExpression(),
         j.identifier('history')
-      ), j.identifier('pushState'));
+      ), j.identifier(functionName));
+  };
+
+  const replaceTransitionTo = p => {
+    addParameterState(p);
+
+    return createHistoryMemberExpression('pushState');
   };
 
   const replaceReplaceWith = p => {
-    const functionArguments = p.parent.node.arguments || p.parent.parent.node.arguments;
-    functionArguments.unshift(j.literal(null));
+    addParameterState(p);
 
-    return j.memberExpression(
-      j.memberExpression(
-        j.thisExpression(),
-        j.identifier('history')
-      ), j.identifier('replaceState'));
+    return createHistoryMemberExpression('replaceState');
   };
 
   const replaceGoBack = () => {

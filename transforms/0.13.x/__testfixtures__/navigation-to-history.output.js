@@ -8,12 +8,12 @@ const OneComponent = React.createClass({
 
   _functionOne() {
     const query = {key: 'value'};
-    this.history.pushState(null, '/users', query);
+    this.history.pushState(null, 'newPath/aa', query);
   },
 
   _functionTwo() {
     const query = {key: 'value'};
-    this.history.replaceState(null, 'user', query);
+    this.history.replaceState(null, 'newPath/bb', query);
   },
 
   render() {

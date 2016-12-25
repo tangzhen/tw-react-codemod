@@ -8,12 +8,12 @@ const OneComponent = React.createClass({
 
   _functionOne() {
     const query = {key: 'value'};
-    this.transitionTo('/users', query);
+    this.transitionTo('routeTwo', query);
   },
 
   _functionTwo() {
     const query = {key: 'value'};
-    this.replaceWith('user', query);
+    this.replaceWith('routeThree', query);
   },
 
   render() {
