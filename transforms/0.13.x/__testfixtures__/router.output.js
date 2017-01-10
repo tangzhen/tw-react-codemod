@@ -1,6 +1,7 @@
 const React = require('react');
 const {
-  Route
+  Route,
+  IndexRoute
 } = require('react-router');
 
 module.exports = (
@@ -19,3 +20,6 @@ const RouteHandlerComponent = React.createClass({
     );
   }
 });
+
+const Router = require('react-router');
+const IndexRoute = Router.IndexRoute;

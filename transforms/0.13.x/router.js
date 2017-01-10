@@ -1,36 +1,26 @@
 'use strict';
 const _ = require('lodash');
+const {renameJSXElement, removeJSXElementAttribute, renameJSXElementAttribute} = require('../utils/ReactUtils');
+const {renameIdentifier} = require('../utils/JSUtils');
 
 module.exports = (file, api, options) => {
   const j = api.jscodeshift;
   const root = j(file.source);
+  const template = j.template;
 
-  const replaceRoute = p => {
-    _.remove(p.node.attributes, {name: {name: 'name'}});
-    const itemHasHandler = _.find(p.node.attributes, {name: {name: 'handler'}});
-    if (itemHasHandler) {
-      _.set(itemHasHandler, 'name.name', 'component');
-    }
+  const changeRoute = p => {
+    removeJSXElementAttribute(p, 'name');
+    renameJSXElementAttribute(p, 'handler', 'component');
 
     return p.node;
   };
 
-  const replaceDefaultRoute = p => {
-    _.remove(p.node.attributes, {name: {name: 'name'}});
-    _.find(p.node.attributes, {name: {name: 'handler'}}).name.name = 'component';
-    _.merge(p.node, {name: 'IndexRoute'});
+  const changeDefaultRoute = p => {
+    removeJSXElementAttribute(p, 'name');
+    renameJSXElementAttribute(p, 'handler', 'component');
+    renameJSXElement(p, 'IndexRoute');
 
     return p.node;
-  };
-
-  const replaceRouteHandler = () => {
-    return j.jsxExpressionContainer(
-      j.memberExpression(
-        j.memberExpression(
-          j.thisExpression(),
-          j.identifier('props')
-        ), j.identifier('children'))
-    );
   };
 
   const removeRouteHandlerRequire = p => {
@@ -38,25 +28,59 @@ module.exports = (file, api, options) => {
     return p.node;
   };
 
-  root.find(j.JSXOpeningElement, {
-    name: {name: 'DefaultRoute'}
-  })
-    .replaceWith(replaceDefaultRoute);
+  const replaceRouteHandler = () => {
+    return j.jsxExpressionContainer(template.expression`this.props.children`);
+  };
 
-  root.find(j.Identifier, {name: 'DefaultRoute'})
-    .replaceWith((p) => {
-      _.merge(p.node, {name: 'IndexRoute'});
-      return p.node;
+  const isRequireModuleDeclarator = (path, moduleName) => {
+    const callExpression = path.node.init;
+
+    return (
+      callExpression.type === 'CallExpression' &&
+      callExpression.callee.type === 'Identifier' &&
+      callExpression.callee.name === 'require' &&
+      callExpression.arguments.length === 1 &&
+      callExpression.arguments[0].type === 'Literal' &&
+      callExpression.arguments[0].value === moduleName
+    );
+  };
+
+  const isObjectPattern = (path) => {
+    return path.node.id.type === 'ObjectPattern';
+  };
+
+  const isRouteHandlerDeclaration = function(p) {
+    return p.node.declarations[0].id.name == 'RouteHandler';
+  };
+
+  root.find(j.VariableDeclaration)
+    .filter(isRouteHandlerDeclaration)
+    .remove();
+
+  root.findJSXElements('Route')
+    .forEach(changeRoute);
+
+  root.find(j.VariableDeclarator, {name: 'DefaultRoute'})
+    .forEach(p => {
+      renameIdentifier(p, 'IndexRoute');
     });
 
-  root.find(j.JSXOpeningElement, {
-    name: {name: 'Route'}
-  })
-    .replaceWith(replaceRoute);
+  root.find(j.Identifier, {name: 'DefaultRoute'})
+    .forEach(p => {
+      renameIdentifier(p, 'IndexRoute');
+    });
 
-  root.find(j.JSXOpeningElement, {
-    name: {name: 'RouteHandler'}
-  })
+  root.findJSXElements('IndexRoute')
+    .forEach(changeDefaultRoute);
+
+    root.find(j.VariableDeclarator)
+    .filter(p => {
+      return isRequireModuleDeclarator(p, 'react-router');
+    })
+    .filter(isObjectPattern)
+    .replaceWith(p => template.statement`${p.node.id} = ${p.node.init}`);
+
+  root.findJSXElements('RouteHandler')
     .replaceWith(replaceRouteHandler);
 
   root.find(j.ObjectPattern)
