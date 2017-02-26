@@ -9,6 +9,7 @@ const OneComponent = React.createClass({
   _functionOne() {
     const query = {key: 'value'};
     this.transitionTo('routeTwo', query);
+    this.transitionTo(this.props.toRoute);
   },
 
   _functionTwo() {

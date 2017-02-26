@@ -9,6 +9,7 @@ const OneComponent = React.createClass({
   _functionOne() {
     const query = {key: 'value'};
     this.history.pushState(null, 'newPath/aa', query);
+    this.history.pushState(null, this.props.toRoute);
   },
 
   _functionTwo() {

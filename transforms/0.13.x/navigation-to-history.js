@@ -5,77 +5,79 @@ const routerPath = require('./routePath');
 module.exports = (file, api, options) => {
   const j = api.jscodeshift;
   const root = j(file.source);
+  const statement = j.template.statement;
 
   const replaceNavigation = p => {
     _.merge(p.node, {name: 'History'});
     return p.node;
   };
 
-  const getRoutePath = routeName => {
-    let newVar = _.get(routerPath, routeName) || routeName;
-    return newVar;
-  };
-
-  const addParameterState = p => {
-    let functionArguments = p.parent.node.arguments;
-    if (_.get(p, 'parent.node.property.name') === 'bind') {
-      functionArguments = p.parent.parent.node.arguments;
-      functionArguments[1] = j.literal(getRoutePath(functionArguments[1].value));
-    } else {
-      functionArguments[0] = j.literal(getRoutePath(functionArguments[0].value));
-    }
-
-    functionArguments.unshift(j.literal(null));
-  };
-
-  const createHistoryMemberExpression = functionName => {
-    return j.memberExpression(
-      j.memberExpression(
-        j.thisExpression(),
-        j.identifier('history')
-      ), j.identifier(functionName));
-  };
-
-  const replaceTransitionTo = p => {
-    addParameterState(p);
-
-    return createHistoryMemberExpression('pushState');
-  };
-
-  const replaceReplaceWith = p => {
-    addParameterState(p);
-
-    return createHistoryMemberExpression('replaceState');
-  };
-
-  const replaceGoBack = () => {
-    return j.memberExpression(
-      j.memberExpression(
-        j.thisExpression(),
-        j.identifier('history')
-      ), j.identifier('goBack'));
-  };
+  const getRoutePath = routeName => _.get(routerPath, routeName) || routeName;
 
   root.find(j.Identifier, {name: 'Navigation'})
     .replaceWith(replaceNavigation);
 
-  root.find(j.MemberExpression, {
-    object: {type: 'ThisExpression'},
-    property: {type: 'Identifier', name: 'transitionTo'},
-  })
-    .replaceWith(replaceTransitionTo);
+  const functionFilter = (functionName, withBind = false) => {
+    const functionNameFilter = {
+      type: 'MemberExpression',
+      object: {
+        type: 'ThisExpression'
+      },
+      property: {
+        name: functionName
+      }
+    };
 
-  root.find(j.MemberExpression, {
-    object: {type: 'ThisExpression'},
-    property: {type: 'Identifier', name: 'replaceWith'},
-  })
-    .replaceWith(replaceReplaceWith);
+    if (withBind) {
+      return {
+        callee: {
+          type: 'MemberExpression',
+          object: functionNameFilter,
+          property: {
+            name: 'bind'
+          }
+        }
+      };
+    } else {
+      return {
+        callee: functionNameFilter
+      };
+    }
+  };
 
-  root.find(j.MemberExpression, {
-    object: {type: 'ThisExpression'},
-    property: {type: 'Identifier', name: 'goBack'},
-  })
-    .replaceWith(replaceGoBack);
+  const changeToHistoryFunction = (functionName, withBind, p) => {
+    const args = p.node.arguments;
+    const routerNameIndex = withBind ? 1 : 0;
+
+    if (typeof args[routerNameIndex].value === 'string') {
+      const newRouterName = getRoutePath(args[routerNameIndex].value);
+      args[routerNameIndex] = j.literal(newRouterName);
+    }
+
+    return withBind
+      ? statement`this.history.${functionName}.bind(null, ${args})`
+      : statement`this.history.${functionName}(null, ${args})`;
+  };
+
+  // Change `this.transitionTo` to `this.history.pushState`
+  root.find('CallExpression', functionFilter('transitionTo'))
+    .replaceWith(changeToHistoryFunction.bind(null, 'pushState', false));
+
+  // Change `this.transitionTo.bind` to `this.history.transitionTo.bind`
+  root.find('CallExpression', functionFilter('transitionTo', true))
+    .replaceWith(changeToHistoryFunction.bind(null, 'pushState', true));
+
+  // Change `this.replaceWith` to `this.history.replaceState`
+  root.find('CallExpression', functionFilter('replaceWith'))
+    .replaceWith(changeToHistoryFunction.bind(null, 'replaceState', false));
+
+  // Change `this.replaceWith.bind` to `this.history.replaceState.bind`
+  root.find('CallExpression', functionFilter('replaceWith', true))
+    .replaceWith(changeToHistoryFunction.bind(null, 'replaceState', true));
+
+  // Change `this.goBack` to `this.history.goBack`
+  root.find('CallExpression', functionFilter('goBack'))
+    .replaceWith(p => statement`this.history.goBack()`);
 
   return root.toSource({quote: 'single'});
 };
