@@ -21,5 +21,17 @@ const RouteHandlerComponent = React.createClass({
   }
 });
 
+const RouteHandlerComponentOne = React.createClass({
+  render() {
+    return this.props.children;
+  }
+});
+
+const RouteHandlerComponentTwo = React.createClass({
+  render() {
+    return (this.props.children);
+  }
+});
+
 const Router = require('react-router');
 const IndexRoute = Router.IndexRoute;

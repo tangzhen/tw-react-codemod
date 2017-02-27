@@ -1,6 +1,5 @@
 'use strict';
-const _ = require('lodash');
-const {renameJSXElement, removeJSXElementAttribute, renameJSXElementAttribute} = require('../utils/ReactUtils');
+const {removeJSXElementAttribute, renameJSXElementAttribute} = require('../utils/ReactUtils');
 const {renameIdentifier} = require('../utils/JSUtils');
 
 module.exports = (file, api, options) => {
@@ -8,83 +7,66 @@ module.exports = (file, api, options) => {
   const root = j(file.source);
   const template = j.template;
 
-  const changeRoute = p => {
+  const removeNameAttribute = p => {
     removeJSXElementAttribute(p, 'name');
+
+    return p.node;
+  };
+
+  const renameHandlerToComponent = p => {
     renameJSXElementAttribute(p, 'handler', 'component');
 
     return p.node;
   };
 
-  const changeDefaultRoute = p => {
-    removeJSXElementAttribute(p, 'name');
-    renameJSXElementAttribute(p, 'handler', 'component');
-    renameJSXElement(p, 'IndexRoute');
+  const findRequireReactRouter = root.find('CallExpression', {
+      callee: {name: 'require'},
+      arguments: [{value: 'react-router'}]
+    }).size() > 0;
 
-    return p.node;
-  };
+  if (findRequireReactRouter) {
+    // Remove `const RouteHandler = Router.RouteHandler;` declaration
+    root.find('VariableDeclaration', {
+      declarations: [{
+        id: {
+          name: 'RouteHandler'
+        }
+      }]
+    }).remove();
 
-  const removeRouteHandlerRequire = p => {
-    _.remove(p.node.properties, {value: {name: 'RouteHandler'}});
-    return p.node;
-  };
+    // Remove `const {RouteHandler} = require('react-router');` declaration
+    root.find('Property', {
+      key: {
+        name: 'RouteHandler'
+      }
+    }).remove();
 
-  const replaceRouteHandler = () => {
-    return j.jsxExpressionContainer(template.expression`this.props.children`);
-  };
+    // Replace RouteHandler with this.props.children
+    root.findJSXElements('RouteHandler')
+      .replaceWith((p) => {
+        if (p.parent.node.type === 'JSXElement') {
+          return j.jsxExpressionContainer(template.expression`this.props.children`);
+        } else {
+          return template.expression`this.props.children`;
+        }
+      });
 
-  const isRequireModuleDeclarator = (path, moduleName) => {
-    const callExpression = path.node.init;
+    // Change `<Route name='' handler={} />` to `<Route component={} />`
+    root.findJSXElements('Route')
+      .forEach(removeNameAttribute)
+      .forEach(renameHandlerToComponent);
 
-    return (
-      callExpression.type === 'CallExpression' &&
-      callExpression.callee.type === 'Identifier' &&
-      callExpression.callee.name === 'require' &&
-      callExpression.arguments.length === 1 &&
-      callExpression.arguments[0].type === 'Literal' &&
-      callExpression.arguments[0].value === moduleName
-    );
-  };
+    // Rename all 'DefaultRoute' to 'IndexRoute'
+    root.find(j.Identifier, {name: 'DefaultRoute'})
+      .forEach(p => {
+        renameIdentifier(p, 'IndexRoute');
+      });
 
-  const isObjectPattern = (path) => {
-    return path.node.id.type === 'ObjectPattern';
-  };
-
-  const isRouteHandlerDeclaration = function(p) {
-    return p.node.declarations[0].id.name == 'RouteHandler';
-  };
-
-  root.find(j.VariableDeclaration)
-    .filter(isRouteHandlerDeclaration)
-    .remove();
-
-  root.findJSXElements('Route')
-    .forEach(changeRoute);
-
-  root.find(j.VariableDeclarator, {name: 'DefaultRoute'})
-    .forEach(p => {
-      renameIdentifier(p, 'IndexRoute');
-    });
-
-  root.find(j.Identifier, {name: 'DefaultRoute'})
-    .forEach(p => {
-      renameIdentifier(p, 'IndexRoute');
-    });
-
-  root.findJSXElements('IndexRoute')
-    .forEach(changeDefaultRoute);
-
-    root.find(j.VariableDeclarator)
-    .filter(p => {
-      return isRequireModuleDeclarator(p, 'react-router');
-    })
-    .filter(isObjectPattern)
-    .replaceWith(p => template.statement`${p.node.id} = ${p.node.init}`);
-
-  root.findJSXElements('RouteHandler')
-    .replaceWith(replaceRouteHandler);
-
-  root.find(j.ObjectPattern)
-    .replaceWith(removeRouteHandlerRequire);
+    // Change `<IndexRoute name='' handler={} />` to `<IndexRoute component={} />`
+    root.findJSXElements('IndexRoute')
+      .forEach(removeNameAttribute)
+      .forEach(renameHandlerToComponent);
+  }
 
   return root.toSource();
 };

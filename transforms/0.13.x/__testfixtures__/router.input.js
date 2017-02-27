@@ -18,6 +18,18 @@ const RouteHandlerComponent = React.createClass({
   }
 });
 
+const RouteHandlerComponentOne = React.createClass({
+  render() {
+    return <RouteHandler/>;
+  }
+});
+
+const RouteHandlerComponentTwo = React.createClass({
+  render() {
+    return (<RouteHandler/>);
+  }
+});
+
 const Router = require('react-router');
 const RouteHandler = Router.RouteHandler;
 const DefaultRoute = Router.DefaultRoute;
